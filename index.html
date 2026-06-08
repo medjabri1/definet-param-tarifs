@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Definet — Paramétrage des tarifs</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/params.css">
+
+  <style>
+    .material-icons-outlined {
+      font-family: 'Material Icons Outlined', monospace;
+      font-style: normal; font-weight: normal;
+      display: inline-block; line-height: 1;
+      text-transform: none; letter-spacing: normal;
+      word-wrap: normal; white-space: nowrap;
+      direction: ltr; -webkit-font-smoothing: antialiased;
+    }
+    /* Correctifs maquette tarifs */
+    .form-grid:not([class*="fg-"]) { grid-template-columns: 1fr 1fr; }   /* colonnes par défaut */
+    .req { color: var(--c-error); }
+    .req::after { content: none !important; }                            /* évite le double astérisque */
+    .data-table td.strong, td.strong { font-weight: 600; color: var(--c-text-1); }
+    .params-subtab { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .params-subtab .material-icons-outlined { font-size: 16px; }
+    /* Padding interne des blocs : les titres/bannières/hints directs n'apportent pas leur propre padding */
+    .bloc > .flex-between { padding: 13px 18px; border-bottom: 1px solid var(--c-border); margin-bottom: 0 !important; }
+    .bloc > .bloc-title:first-child { padding: 14px 18px 0; }
+    .bloc > .banner { margin: 12px 16px; }
+    .bloc > .hint { padding: 2px 18px 14px; }
+    .bloc > .flex-row { padding: 4px 16px 14px; }
+    .bloc > .text-muted { padding: 0 18px 12px; }
+  </style>
+</head>
+<body class="is-app">
+
+  <div id="app-shell">
+    <nav id="sidenav" class="sidenav"></nav>
+
+    <div class="app-main">
+      <header id="topbar" class="topbar"></header>
+      <main id="router-outlet" class="page-body"></main>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    window.onerror = function(msg, src, line) {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#D93025;color:#fff;' +
+        'padding:10px 14px;font:12px/1.4 monospace;z-index:99999;white-space:pre-wrap;';
+      d.textContent = '⚠ ' + msg + '  —  ' + (src||'').split('/').pop() + ':' + line;
+      document.body.appendChild(d);
+    };
+  </script>
+
+  <script src="js/state.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="components/notifications.js"></script>
+  <script src="components/modals.js"></script>
+  <script src="components/drawer.js"></script>
+  <script src="components/sidenav.js"></script>
+  <script src="components/topbar.js"></script>
+
+  <script src="pages/home.js"></script>
+  <script src="pages/tarifs.js"></script>
+  <script src="pages/tarif-fiche.js"></script>
+  <script src="pages/quotients.js"></script>
+  <script src="pages/simulation.js"></script>
+
+  <script src="js/router.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
