@@ -1,10 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    MOTEUR DE CALCUL DU PRIX — resolveTarif()
    Implémente les règles validées + remarques client :
-   - sélection de la tranche (grille de quotients/revenus)
+   - sélection de la tranche (tranches du tarif, initialisées depuis la grille de quotients/revenus puis modifiables)
    - si pas de QF/revenu → TARIF MAXIMUM (dernière tranche)
    - sélection de la colonne (dégressivité / nb enfants)
    - lecture de la cellule (matrice prix OU taux d'effort %)
+   - taux d'effort : montant = QF × taux + montant paramétré de la tranche 🟦
    - mode forfait / unité / heure (+ arrondi heure/½h/¼h, plancher)
    - formule personnalisée optionnelle
    - bornes min/max
@@ -49,22 +50,27 @@ const Engine = (() => {
 
     // 1. LIGNE — tranche de QF/revenu
     let trancheKey = '_', trancheLabel = '—', noQf = false;
+    let qfBase = 0, trancheMontant = 0; // 🟦 base (QF/revenu) + montant paramétré de la tranche
     if (tarif.dependQF) {
       const grille = Data.grille(tarif.grilleCode);
       if (!grille) return err('GRILLE_INTROUVABLE', 'Grille de quotients/revenus introuvable.');
       const base = grille.source === 'Revenu' ? ctx.revenu : ctx.qf;
-      const tris = [...grille.tranches].sort((a, b) => a.borneInf - b.borneInf);
+      // 🟦 Les tranches du TARIF (initialisées depuis la grille puis modifiables) priment ;
+      //    repli sur les tranches de la grille pour les tarifs antérieurs non encore initialisés.
+      const trancheSrc = (tarif.tranches && tarif.tranches.length) ? tarif.tranches : grille.tranches;
+      const tris = [...trancheSrc].sort((a, b) => a.borneInf - b.borneInf);
       if (base == null || base === '') {
         // RÈGLE CLIENT : pas de quotient/revenu → tarif maximum (dernière tranche)
         const t = tris[tris.length - 1];
         trancheKey = t.ordre; trancheLabel = `${t.libelle} (tarif maximum — pas de ${grille.source.toLowerCase()})`;
-        noQf = true;
+        noQf = true; qfBase = 0; trancheMontant = +t.montant || 0;
         steps.push(`Pas de ${grille.source.toLowerCase()} fourni → application du tarif maximum (${t.libelle}).`);
       } else {
         let t = tris.find(x => base >= x.borneInf && base <= x.borneSup);
         if (!t) { t = base < tris[0].borneInf ? tris[0] : tris[tris.length - 1]; steps.push('Valeur hors bornes → tranche extrême appliquée.'); }
         trancheKey = t.ordre; trancheLabel = `${t.libelle} [${t.borneInf} → ${t.borneSup}]`;
-        steps.push(`${grille.source} = ${base} → ${t.libelle}.`);
+        qfBase = +base; trancheMontant = +t.montant || 0;
+        steps.push(`${grille.source} = ${base} → ${t.libelle}${trancheMontant ? ` (montant tranche ${Utils.formatEuro(trancheMontant)})` : ''}.`);
       }
     } else {
       steps.push('Tarif sans dépendance au quotient.');
@@ -89,11 +95,11 @@ const Engine = (() => {
     let unit = valeur;
     let formuleInfo = null;
     if (tarif.typeValeur === 'TAUX') {
-      const assiette = ctx.ressources != null && ctx.ressources !== '' ? +ctx.ressources
-                      : (ctx.revenu != null && ctx.revenu !== '' ? +ctx.revenu : null);
-      if (assiette == null) return err('ASSIETTE_REQUISE', 'Un montant de ressources est requis pour un tarif en taux d\'effort.');
-      unit = assiette * valeur; // taux stocké en fraction décimale (0.06 = 6 %)
-      steps.push(`Taux d'effort ${(valeur * 100).toFixed(2)} % × ressources ${Utils.formatEuro(assiette)} = ${unit.toFixed(2)} €.`);
+      // 🟦 Taux d'effort : montant = QF × taux + montant paramétré de la tranche.
+      //    (taux stocké en fraction décimale : 0.06 = 6 %)
+      unit = qfBase * valeur + trancheMontant;
+      const detailQf = noQf ? 'QF absent → 0' : `QF ${qfBase} × ${(valeur * 100).toFixed(2)} %`;
+      steps.push(`Taux d'effort : ${detailQf}${trancheMontant ? ` + montant tranche ${Utils.formatEuro(trancheMontant)}` : ''} = ${unit.toFixed(2)} €.`);
     } else if (tarif.formule) {
       const vars = { valeur, qf: +ctx.qf || 0, revenu: +ctx.revenu || 0, nbEnfants: +ctx.nbEnfants || 1, heures: +ctx.heures || 0, unites: +ctx.unites || 1, ressources: +ctx.ressources || 0 };
       const r = evalFormule(tarif.formule, vars);

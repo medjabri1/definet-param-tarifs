@@ -19,12 +19,13 @@ window.State = State;
    DONNÉES MOCK — domaine « Paramétrage des tarifs »
    Reflète les remarques client :
    - période de validité OBLIGATOIRE (pas d'année / exercice)
-   - grilles de quotients/revenus paramétrables et datées
+   - grilles de quotients/revenus paramétrables et datées (servent à INITIALISER les tranches d'un tarif, puis modifiables dans le tarif)
    - choix automatique du tarif (commune / type de famille / type d'individu)
-   - grille de PRIX ou de TAUX D'EFFORT (%)
+   - grille de PRIX ou de TAUX D'EFFORT (%) ; taux d'effort : montant = QF × taux + montant paramétré de la tranche
+   - chaque tranche porte un MONTANT paramétrable (ajouté au calcul QF × taux d'effort)
    - formule personnalisée
    - si pas de QF/revenu → tarif maximum
-   - pas de TVA
+   - TVA conservée ; pas de taux de facturation (taux pour mille)
    ═══════════════════════════════════════════════════════════════ */
 const TarifData = {
   communes:      ['Toutes', 'Paris 12e', 'Vincennes', 'Saint-Mandé', 'Hors commune'],
@@ -45,17 +46,17 @@ const TarifData = {
     { code: 'A', libelle: 'Quotient familial CAF', source: 'Quotient familial',
       validite: { debut: '2026-01-01', fin: '2026-12-31' }, actif: true,
       tranches: [
-        { ordre: 1, libelle: 'Tranche 1', borneInf: 0,    borneSup: 700 },
-        { ordre: 2, libelle: 'Tranche 2', borneInf: 701,  borneSup: 1200 },
-        { ordre: 3, libelle: 'Tranche 3', borneInf: 1201, borneSup: 2000 },
-        { ordre: 4, libelle: 'Tranche 4', borneInf: 2001, borneSup: 999999 },
+        { ordre: 1, libelle: 'Tranche 1', borneInf: 0,    borneSup: 700,    montant: 0 },
+        { ordre: 2, libelle: 'Tranche 2', borneInf: 701,  borneSup: 1200,   montant: 5 },
+        { ordre: 3, libelle: 'Tranche 3', borneInf: 1201, borneSup: 2000,   montant: 10 },
+        { ordre: 4, libelle: 'Tranche 4', borneInf: 2001, borneSup: 999999, montant: 15 },
       ] },
     { code: 'B', libelle: 'Revenus mensuels', source: 'Revenu',
       validite: { debut: '2026-01-01', fin: '2026-08-31' }, actif: true,
       tranches: [
-        { ordre: 1, libelle: 'Bas revenus',    borneInf: 0,    borneSup: 1500 },
-        { ordre: 2, libelle: 'Revenus moyens', borneInf: 1501, borneSup: 3000 },
-        { ordre: 3, libelle: 'Hauts revenus',  borneInf: 3001, borneSup: 999999 },
+        { ordre: 1, libelle: 'Bas revenus',    borneInf: 0,    borneSup: 1500,   montant: 0 },
+        { ordre: 2, libelle: 'Revenus moyens', borneInf: 1501, borneSup: 3000,   montant: 0 },
+        { ordre: 3, libelle: 'Hauts revenus',  borneInf: 3001, borneSup: 999999, montant: 0 },
       ] },
   ],
 
@@ -95,18 +96,30 @@ const TarifData = {
     },
     {
       id: 3, nom: 'Crèche — taux d\'effort', sigle: 'CRECHE-TE',
-      description: 'Participation en pourcentage des ressources (taux d\'effort), pas un prix fixe',
+      description: 'Participation = QF × taux d\'effort + montant paramétré de la tranche',
       modeCalcul: 'FORFAIT', uniteLabel: null, regleArrondi: 'AUCUN', minutesMin: null,
-      typeValeur: 'TAUX', dependQF: false, grilleCode: null, dependEnfants: true,
+      typeValeur: 'TAUX', dependQF: true, grilleCode: 'A', dependEnfants: true,
       min: null, max: null, formule: null,
       validite: { debut: '2026-01-01', fin: '2026-12-31' }, actif: true,
       criteres: { commune: 'Toutes', typeFamille: 'Tous', typeIndividu: 'Allocataire CAF' },
+      // 🟦 tranches initialisées depuis la grille A, avec montant paramétré par tranche
+      tranches: [
+        { ordre: 1, libelle: 'Tranche 1', borneInf: 0,    borneSup: 700,    montant: 0 },
+        { ordre: 2, libelle: 'Tranche 2', borneInf: 701,  borneSup: 1200,   montant: 5 },
+        { ordre: 3, libelle: 'Tranche 3', borneInf: 1201, borneSup: 2000,   montant: 10 },
+        { ordre: 4, libelle: 'Tranche 4', borneInf: 2001, borneSup: 999999, montant: 15 },
+      ],
       degressivites: [
         { ordre: 1, label: '1 enfant',       borneInf: 1, borneSup: 1 },
         { ordre: 2, label: '2 enfants',      borneInf: 2, borneSup: 2 },
         { ordre: 3, label: '3 enfants et +', borneInf: 3, borneSup: 99 },
       ],
-      valeurs: { _: { 1: 0.06, 2: 0.05, 3: 0.04 } }, // % d'effort
+      valeurs: { // taux d'effort (fraction : 0.06 = 6 %)
+        1: { 1: 0.06, 2: 0.05, 3: 0.04 },
+        2: { 1: 0.06, 2: 0.05, 3: 0.04 },
+        3: { 1: 0.07, 2: 0.06, 3: 0.05 },
+        4: { 1: 0.08, 2: 0.07, 3: 0.06 },
+      },
       prestations: [6],
     },
     {

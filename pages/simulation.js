@@ -65,7 +65,7 @@ const SimulationPage = (() => {
     if (t.dependEnfants) fields.push(`<div class="form-field"><label>Nombre d'enfants</label><input class="input" type="number" id="s-nbenf" value="1"></div>`);
     if (t.modeCalcul === 'HORAIRE') fields.push(`<div class="form-field"><label>Durée (heures)</label><input class="input" type="number" step="0.01" id="s-heures" value="1.10"></div>`);
     if (t.modeCalcul === 'UNITAIRE') fields.push(`<div class="form-field"><label>Nombre de ${t.uniteLabel || 'unités'}</label><input class="input" type="number" id="s-unites" value="20"></div>`);
-    if (t.typeValeur === 'TAUX') fields.push(`<div class="form-field"><label>Ressources (€)</label><input class="input" type="number" id="s-ress" value="1800"></div>`);
+    if (t.typeValeur === 'TAUX') fields.push(`<div class="form-field full"><div class="banner info" style="margin:0"><span class="material-icons-outlined">percent</span><span>Taux d'effort : <b>montant = QF × taux + montant de la tranche</b> (le QF saisi ci-dessus sert de base ; plus de saisie de ressources séparée).</span></div></div>`);
     fields.push(`<div class="form-field"><label>Date de référence</label><input class="input" type="date" id="s-date" value="2026-09-15"></div>`);
     host.innerHTML = `
       <div class="banner info" style="margin:12px 0"><span class="material-icons-outlined">tune</span><span>${Data.modeLabel(t.modeCalcul)} · ${Data.valeurLabel(t.typeValeur)}${t.dependQF ? ' · grille ' + t.grilleCode : ''}${t.regleArrondi !== 'AUCUN' ? ' · arrondi ' + Data.arrondiLabel(t.regleArrondi) : ''} · validité ${Utils.formatDate(t.validite.debut)}→${Utils.formatDate(t.validite.fin)}</span></div>
@@ -88,7 +88,7 @@ const SimulationPage = (() => {
   function compute() {
     const t = Data.tarif(_tarifId);
     const val = id => { const e = Utils.qs('#' + id); return e ? e.value : undefined; };
-    const ctx = { qf: val('s-qf'), revenu: val('s-revenu'), nbEnfants: val('s-nbenf'), heures: val('s-heures'), unites: val('s-unites'), ressources: val('s-ress'), date: val('s-date') };
+    const ctx = { qf: val('s-qf'), revenu: val('s-revenu'), nbEnfants: val('s-nbenf'), heures: val('s-heures'), unites: val('s-unites'), date: val('s-date') };
     const r = Engine.resolveTarif(t, ctx);
     const host = Utils.qs('#s-result');
     if (!r.ok) {

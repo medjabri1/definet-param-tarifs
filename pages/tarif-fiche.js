@@ -9,15 +9,27 @@ const TarifFichePage = (() => {
     return { id: Data.nextTarifId(), nom: '', sigle: '', description: '',
       modeCalcul: 'FORFAIT', uniteLabel: 'repas', regleArrondi: 'AUCUN', minutesMin: null,
       typeValeur: 'PRIX', dependQF: false, grilleCode: TarifData.grilles[0]?.code || null, dependEnfants: false,
-      min: null, max: null, formule: null, validite: { debut: '', fin: '' }, actif: true,
+      min: null, max: null, tva: null, formule: null, validite: { debut: '', fin: '' }, actif: true,
       criteres: { commune: 'Toutes', typeFamille: 'Tous', typeIndividu: 'Tous' },
-      degressivites: [], valeurs: {}, prestations: [] };
+      tranches: [], degressivites: [], valeurs: {}, prestations: [] };
+  }
+
+  // 🟦 Initialise les tranches PROPRES au tarif à partir de la grille de quotients choisie.
+  //    La grille n'est qu'un MODÈLE : les tranches copiées restent ensuite modifiables dans le tarif.
+  function _initTranches(force) {
+    const g = Data.grille(_t.grilleCode);
+    if (!g) { if (force) _t.tranches = []; return; }
+    if (force || !_t.tranches || !_t.tranches.length) {
+      _t.tranches = g.tranches.map(t => ({ ordre: t.ordre, libelle: t.libelle, borneInf: t.borneInf, borneSup: t.borneSup, montant: t.montant || 0 }));
+    }
   }
 
   function render(el, params) {
     _isNew = params.id === 'nouveau';
     _t = _isNew ? _blank() : JSON.parse(JSON.stringify(Data.tarif(params.id)));
     if (!_t) { el.innerHTML = `<div class="params-shell"><div class="empty-state"><span class="material-icons-outlined">error</span><div class="title">Tarif introuvable</div></div></div>`; return; }
+    if (!_t.tranches) _t.tranches = [];
+    if (_t.dependQF && !_t.tranches.length) _initTranches(); // 🟦 init depuis la grille à l'ouverture
     _tab = 'general';
     el.innerHTML = `
       <div class="params-shell">
@@ -77,6 +89,7 @@ const TarifFichePage = (() => {
             </select><div class="hint">Taux d'effort en pourcentage (pas de taux pour mille).</div></div>
           <div class="form-field"><label>Borne minimum (€)</label><input class="input" type="number" id="f-min" value="${_t.min ?? ''}"></div>
           <div class="form-field"><label>Borne maximum (€)</label><input class="input" type="number" id="f-max" value="${_t.max ?? ''}"></div>
+          <div class="form-field"><label>TVA (%)</label><input class="input" type="number" step="0.1" id="f-tva" value="${_t.tva ?? ''}"><div class="hint">Taux de TVA éventuel, appliqué à la facturation.</div></div>
 
           <div class="form-field"><label>Début de validité <span class="req">*</span></label><input class="input" type="date" id="f-deb" value="${_t.validite.debut}"></div>
           <div class="form-field"><label>Fin de validité <span class="req">*</span></label><input class="input" type="date" id="f-fin" value="${_t.validite.fin}"></div>
@@ -110,11 +123,12 @@ const TarifFichePage = (() => {
     v('f-typeval').onchange = e => _t.typeValeur = e.target.value;
     v('f-min').oninput = e => _t.min = e.target.value === '' ? null : +e.target.value;
     v('f-max').oninput = e => _t.max = e.target.value === '' ? null : +e.target.value;
+    v('f-tva').oninput = e => _t.tva = e.target.value === '' ? null : +e.target.value;
     v('f-deb').onchange = e => _t.validite.debut = e.target.value;
     v('f-fin').onchange = e => _t.validite.fin = e.target.value;
     v('f-actif').onchange = e => _t.actif = e.target.checked;
-    v('f-depqf').onchange = e => { _t.dependQF = e.target.checked; v('f-grille-wrap').style.display = e.target.checked ? '' : 'none'; };
-    v('f-grille').onchange = e => _t.grilleCode = e.target.value;
+    v('f-depqf').onchange = e => { _t.dependQF = e.target.checked; v('f-grille-wrap').style.display = e.target.checked ? '' : 'none'; if (e.target.checked) _initTranches(); };
+    v('f-grille').onchange = e => { _t.grilleCode = e.target.value; _initTranches(true); _t.valeurs = {}; Utils.toast('Tranches initialisées depuis la grille (modifiables)', 'info'); };
     v('f-depenf').onchange = e => { _t.dependEnfants = e.target.checked; if (e.target.checked && !_t.degressivites.length) _t.degressivites = [{ ordre: 1, label: 'Tous', borneInf: 1, borneSup: 99 }]; };
     v('f-formule').oninput = e => _t.formule = e.target.value.trim() || null;
   }
@@ -141,9 +155,9 @@ const TarifFichePage = (() => {
   /* ───────── ÉDITEUR DE GRILLE ───────── */
   function _trancheList() {
     if (!_t.dependQF) return [{ key: '_', label: 'Tarif unique' }];
-    const g = Data.grille(_t.grilleCode);
-    if (!g) return [{ key: '_', label: 'Tarif unique' }];
-    return [...g.tranches].sort((a, b) => a.ordre - b.ordre).map(t => ({ key: t.ordre, label: `${t.libelle} [${t.borneInf} → ${t.borneSup}]` }));
+    if (!_t.tranches || !_t.tranches.length) return [{ key: '_', label: 'Tarif unique' }];
+    // 🟦 Lignes = tranches PROPRES au tarif (initialisées depuis la grille, puis modifiables).
+    return [..._t.tranches].sort((a, b) => a.ordre - b.ordre).map(t => ({ key: t.ordre, label: `${t.libelle} [${t.borneInf} → ${t.borneSup}]${t.montant ? ` · +${(+t.montant).toFixed(2)} €` : ''}` }));
   }
   function _colList() {
     if (!_t.dependEnfants || !_t.degressivites.length) return [{ key: '_', label: '—' }];
@@ -158,17 +172,20 @@ const TarifFichePage = (() => {
       <div class="bloc">
         <div class="flex-between" style="margin-bottom:10px">
           <div class="bloc-title">Grille de ${_t.typeValeur === 'TAUX' ? 'taux d\'effort (%)' : 'prix (€)'}</div>
-          ${_t.dependEnfants ? `<button class="btn btn-sm btn-ghost" onclick="TarifFichePage.addCol()"><span class="material-icons-outlined">add</span>Ajouter une colonne (enfants)</button>` : ''}
+          <div style="display:flex;gap:8px">
+            ${_t.dependQF ? `<button class="btn btn-sm btn-ghost" onclick="TarifFichePage.addTranche()"><span class="material-icons-outlined">add</span>Ajouter une tranche</button>` : ''}
+            ${_t.dependEnfants ? `<button class="btn btn-sm btn-ghost" onclick="TarifFichePage.addCol()"><span class="material-icons-outlined">add</span>Ajouter une colonne (enfants)</button>` : ''}
+          </div>
         </div>
         ${_t.dependQF
-          ? `<div class="banner info"><span class="material-icons-outlined">calculate</span><span>Lignes = tranches de la grille <b>${g ? g.code + ' — ' + Utils.esc(g.libelle) : '—'}</b> (paramétrée dans « Grilles de quotients/revenus »).</span></div>`
+          ? `<div class="banner info"><span class="material-icons-outlined">calculate</span><span>Lignes = <b>tranches du tarif</b>, initialisées depuis la grille <b>${g ? g.code + ' — ' + Utils.esc(g.libelle) : '—'}</b> puis <b>modifiables ici</b> (ajout / modification / suppression).</span></div>`
           : `<div class="banner info"><span class="material-icons-outlined">info</span><span>Tarif sans dépendance au quotient : une seule ligne.</span></div>`}
         <table class="data-table" style="margin-top:10px">
           <thead><tr><th>Tranche \\ ${_t.dependEnfants ? 'Nb enfants' : 'Valeur'}</th>
             ${cols.map(col => `<th style="text-align:center">${col.label}${_t.dependEnfants ? ` <button class="icon-btn" title="Supprimer" onclick="TarifFichePage.delCol('${col.key}')"><span class="material-icons-outlined" style="font-size:15px">close</span></button>` : ''}</th>`).join('')}
           </tr></thead>
           <tbody>
-            ${lignes.map(l => `<tr><td class="strong">${l.label}</td>
+            ${lignes.map(l => `<tr><td class="strong">${l.label}${_t.dependQF && l.key !== '_' ? ` <button class="icon-btn" title="Modifier la tranche" onclick="TarifFichePage.editTranche('${l.key}')"><span class="material-icons-outlined" style="font-size:15px">edit</span></button><button class="icon-btn" title="Supprimer la tranche" onclick="TarifFichePage.delTranche('${l.key}')"><span class="material-icons-outlined" style="font-size:15px">close</span></button>` : ''}</td>
               ${cols.map(col => {
                 const val = (_t.valeurs[l.key] || {})[col.key];
                 return `<td style="text-align:center"><input class="input cell" style="max-width:90px;text-align:right" type="number" step="0.01" data-l="${l.key}" data-c="${col.key}" value="${val ?? ''}"> ${unitSuffix}</td>`;
@@ -176,7 +193,7 @@ const TarifFichePage = (() => {
             </tr>`).join('')}
           </tbody>
         </table>
-        <div class="hint" style="margin-top:8px">Toutes les cases doivent être remplies pour enregistrer. ${_t.typeValeur === 'TAUX' ? 'Saisir le pourcentage (ex. 6 pour 6 %).' : ''}</div>
+        <div class="hint" style="margin-top:8px">Toutes les cases doivent être remplies pour enregistrer. ${_t.typeValeur === 'TAUX' ? 'Saisir le pourcentage (ex. 6 pour 6 %). Calcul : <b>montant = QF × taux d\'effort + montant de la tranche</b> (montant réglable via « Modifier la tranche »).' : ''}</div>
       </div>`;
 
     Utils.qsa('.cell', c).forEach(inp => inp.oninput = e => {
@@ -209,6 +226,49 @@ const TarifFichePage = (() => {
   function delCol(key) {
     _t.degressivites = _t.degressivites.filter(d => String(d.ordre) !== String(key));
     Object.values(_t.valeurs).forEach(row => delete row[key]);
+    _grille(Utils.qs('#fiche-content'));
+  }
+
+  /* ───────── TRANCHES (propres au tarif, initialisées depuis la grille) 🟦 ───────── */
+  function _trancheForm(t) {
+    return `<div class="form-grid">
+      <div class="form-field full"><label>Libellé</label><input class="input" id="tr-lbl" value="${t ? Utils.esc(t.libelle) : ''}" placeholder="ex. Tranche 5"></div>
+      <div class="form-field"><label>Borne inférieure</label><input class="input" type="number" id="tr-inf" value="${t ? t.borneInf : 0}"></div>
+      <div class="form-field"><label>Borne supérieure</label><input class="input" type="number" id="tr-sup" value="${t ? t.borneSup : 0}"></div>
+      <div class="form-field full"><label>Montant de la tranche (€)</label><input class="input" type="number" step="0.01" id="tr-mt" value="${t ? (t.montant ?? 0) : 0}"><div class="hint">Ajouté au calcul en taux d'effort : <b>montant = QF × taux d'effort + ce montant</b>.</div></div>
+    </div>`;
+  }
+  function _trancheRead() {
+    const lbl = Utils.qs('#tr-lbl').value.trim(), inf = +Utils.qs('#tr-inf').value, sup = +Utils.qs('#tr-sup').value;
+    const mt = Utils.qs('#tr-mt').value === '' ? 0 : +Utils.qs('#tr-mt').value;
+    if (!lbl) { Utils.toast('Libellé requis', 'error'); return null; }
+    if (sup <= inf) { Utils.toast('La borne supérieure doit être > borne inférieure', 'error'); return null; }
+    return { lbl, inf, sup, mt };
+  }
+  function addTranche() {
+    Drawer.open({ title: 'Ajouter une tranche', icon: 'add', body: _trancheForm(null),
+      footer: `<button class="btn btn-ghost" onclick="Drawer.close()">Annuler</button><button class="btn btn-primary" onclick="TarifFichePage.doAddTranche()">Ajouter</button>` });
+  }
+  function doAddTranche() {
+    const v = _trancheRead(); if (!v) return;
+    const ordre = Math.max(0, ..._t.tranches.map(t => t.ordre)) + 1;
+    _t.tranches.push({ ordre, libelle: v.lbl, borneInf: v.inf, borneSup: v.sup, montant: v.mt });
+    Drawer.close(); _grille(Utils.qs('#fiche-content'));
+  }
+  function editTranche(key) {
+    const t = _t.tranches.find(x => String(x.ordre) === String(key)); if (!t) return;
+    Drawer.open({ title: 'Modifier la tranche', icon: 'edit', body: _trancheForm(t),
+      footer: `<button class="btn btn-ghost" onclick="Drawer.close()">Annuler</button><button class="btn btn-primary" onclick="TarifFichePage.doEditTranche('${key}')">Enregistrer</button>` });
+  }
+  function doEditTranche(key) {
+    const t = _t.tranches.find(x => String(x.ordre) === String(key)); if (!t) return;
+    const v = _trancheRead(); if (!v) return;
+    t.libelle = v.lbl; t.borneInf = v.inf; t.borneSup = v.sup; t.montant = v.mt;
+    Drawer.close(); _grille(Utils.qs('#fiche-content'));
+  }
+  function delTranche(key) {
+    _t.tranches = _t.tranches.filter(t => String(t.ordre) !== String(key));
+    delete _t.valeurs[key];
     _grille(Utils.qs('#fiche-content'));
   }
 
@@ -252,6 +312,6 @@ const TarifFichePage = (() => {
     Router.go('/tarifs');
   }
 
-  return { render, tab, save, addCol, doAddCol, delCol, link, unlink };
+  return { render, tab, save, addCol, doAddCol, delCol, addTranche, doAddTranche, editTranche, doEditTranche, delTranche, link, unlink };
 })();
 window.TarifFichePage = TarifFichePage;

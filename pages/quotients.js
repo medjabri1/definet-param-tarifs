@@ -50,16 +50,18 @@ const QuotientsPage = (() => {
         <div class="kv-row" style="margin-top:6px"><span class="kv-key">Source</span><span class="kv-val">${g.source}</span></div>
         <div class="kv-row"><span class="kv-key">Validité</span><span class="kv-val">${Utils.formatDate(g.validite.debut)} → ${Utils.formatDate(g.validite.fin)} ${g.validite.debut && g.validite.fin ? '' : Utils.badge('manquante', 'closed')}</span></div>
       </div>
+      <div class="banner info" style="margin-top:14px"><span class="material-icons-outlined">info</span><span>Cette grille sert de <b>modèle</b> : à sa sélection dans un tarif, ses tranches sont <b>copiées dans le tarif</b> où elles restent <b>modifiables</b> — sans impacter la grille.</span></div>
       <div class="bloc" style="margin-top:14px">
         <div class="flex-between" style="margin-bottom:10px">
           <div class="bloc-title">Tranches (${tranches.length})</div>
           <button class="btn btn-sm btn-primary" onclick="QuotientsPage.addTranche('${g.code}')"><span class="material-icons-outlined">add</span>Ajouter une tranche</button>
         </div>
         <table class="data-table">
-          <thead><tr><th>Ordre</th><th>Libellé</th><th style="text-align:right">Borne inf.</th><th style="text-align:right">Borne sup.</th><th style="text-align:right">Actions</th></tr></thead>
+          <thead><tr><th>Ordre</th><th>Libellé</th><th style="text-align:right">Borne inf.</th><th style="text-align:right">Borne sup.</th><th style="text-align:right">Montant (€)</th><th style="text-align:right">Actions</th></tr></thead>
           <tbody>${tranches.map(t => `<tr>
             <td>${t.ordre}</td><td class="strong">${Utils.esc(t.libelle)}</td>
             <td style="text-align:right">${t.borneInf}</td><td style="text-align:right">${t.borneSup}</td>
+            <td style="text-align:right">${(+(t.montant || 0)).toFixed(2)}</td>
             <td style="text-align:right;white-space:nowrap">
               <button class="icon-btn" title="Modifier" onclick="QuotientsPage.editTranche('${g.code}',${t.ordre})"><span class="material-icons-outlined">edit</span></button>
               <button class="icon-btn" title="Supprimer" onclick="QuotientsPage.delTranche('${g.code}',${t.ordre})"><span class="material-icons-outlined">delete</span></button>
@@ -115,18 +117,20 @@ const QuotientsPage = (() => {
         <div class="form-field full"><label>Libellé <span class="req">*</span></label><input class="input" id="tr-lib" value="${t ? Utils.esc(t.libelle) : ''}"></div>
         <div class="form-field"><label>Borne inférieure <span class="req">*</span></label><input class="input" type="number" id="tr-inf" value="${t ? t.borneInf : ''}"></div>
         <div class="form-field"><label>Borne supérieure <span class="req">*</span></label><input class="input" type="number" id="tr-sup" value="${t ? t.borneSup : ''}"></div>
+        <div class="form-field full"><label>Montant de la tranche (€)</label><input class="input" type="number" step="0.01" id="tr-mt" value="${t ? (t.montant ?? 0) : 0}"><div class="hint">Sert de valeur initiale dans les tarifs ; ajouté au calcul en taux d'effort (<b>QF × taux + ce montant</b>).</div></div>
       </div><div class="hint" style="margin-top:8px">Les tranches ne doivent pas se chevaucher.</div>`,
       footer: `<button class="btn btn-ghost" onclick="Drawer.close()">Annuler</button><button class="btn btn-primary" onclick="QuotientsPage.saveTranche('${code}',${isNew ? 'null' : t.ordre})">Enregistrer</button>` });
   }
   function saveTranche(code, ordre) {
     const g = Data.grille(code);
     const lib = Utils.qs('#tr-lib').value.trim(), inf = +Utils.qs('#tr-inf').value, sup = +Utils.qs('#tr-sup').value;
+    const mt = Utils.qs('#tr-mt').value === '' ? 0 : +Utils.qs('#tr-mt').value;
     if (!lib) { Utils.toast('Libellé requis', 'error'); return; }
     if (sup <= inf) { Utils.toast('La borne supérieure doit être > borne inférieure', 'error'); return; }
     const others = g.tranches.filter(t => t.ordre !== ordre);
     if (others.some(t => inf <= t.borneSup && sup >= t.borneInf)) { Utils.toast('Chevauchement avec une autre tranche', 'error'); return; }
-    if (ordre) { const t = g.tranches.find(x => x.ordre === ordre); t.libelle = lib; t.borneInf = inf; t.borneSup = sup; }
-    else { const o = Math.max(0, ...g.tranches.map(t => t.ordre)) + 1; g.tranches.push({ ordre: o, libelle: lib, borneInf: inf, borneSup: sup }); }
+    if (ordre) { const t = g.tranches.find(x => x.ordre === ordre); t.libelle = lib; t.borneInf = inf; t.borneSup = sup; t.montant = mt; }
+    else { const o = Math.max(0, ...g.tranches.map(t => t.ordre)) + 1; g.tranches.push({ ordre: o, libelle: lib, borneInf: inf, borneSup: sup, montant: mt }); }
     Drawer.close(); Utils.toast('Tranche enregistrée', 'success'); _renderDetail(); _renderList();
   }
   function delTranche(code, ordre) {
